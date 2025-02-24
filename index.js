@@ -1,12 +1,13 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const path = require('path');
 const app = express();
 const cors = require('cors');
 require('dotenv').config();
-const Person = require('./models/person'); // Import the model
+const Person = require('./models/person');
 
 // ✅ Middleware Setup
-app.use(express.static('dist'))
+app.use(express.static(path.join(__dirname, 'dist'))); // Serve frontend build
 app.use(cors());
 app.use(express.json());
 
@@ -21,33 +22,30 @@ mongoose.connect(MONGODB_URI)
   });
 
 // ✅ Routes
-// Get all persons
 app.get('/api/persons', async (req, res, next) => {
   try {
     const persons = await Person.find({});
     console.log(`📄 Retrieved ${persons.length} persons`);
     res.json(persons);
   } catch (err) {
-    next(err); // Pass error to error handler
+    next(err);
   }
 });
+
 app.get('/api/persons/:id', async (req, res, next) => {
   try {
     const person = await Person.findById(req.params.id);
-
     if (!person) {
       return res.status(404).json({ error: 'Person not found' });
     }
-
-    res.json(person); // ✅ Return the person if found
+    res.json(person);
   } catch (error) {
-    next(error); // Pass errors to the error handler
+    next(error);
   }
 });
-// Add a new person
+
 app.post('/api/persons', async (req, res, next) => {
   const { name, number } = req.body;
-
   if (!name || !number) {
     return res.status(400).json({ error: 'Name and number are required' });
   }
@@ -67,10 +65,8 @@ app.post('/api/persons', async (req, res, next) => {
   }
 });
 
-// ✅ PUT: Update a person's phone number
 app.put('/api/persons/:id', async (req, res, next) => {
   const { name, number } = req.body;
-
   if (!name || !number) {
     return res.status(400).json({ error: 'Name and number are required' });
   }
@@ -86,9 +82,9 @@ app.put('/api/persons/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Person not found' });
     }
 
-    res.json(updatedPerson); // ✅ Return the updated person
+    res.json(updatedPerson);
   } catch (error) {
-    next(error); // Pass errors to error handler
+    next(error);
   }
 });
 
@@ -104,8 +100,6 @@ app.get('/info', async (req, res, next) => {
   }
 });
 
-
-// Delete a person by ID
 app.delete('/api/persons/:id', async (req, res, next) => {
   try {
     const deletedPerson = await Person.findByIdAndDelete(req.params.id);
@@ -120,12 +114,16 @@ app.delete('/api/persons/:id', async (req, res, next) => {
   }
 });
 
-// Health check route
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     database: mongoose.connection.readyState,
   });
+});
+
+// ✅ Serve Frontend for Unknown Routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // ✅ Unknown Endpoint Middleware
@@ -134,23 +132,20 @@ app.use((req, res) => {
 });
 
 // ✅ Error Handling Middleware
-const errorHandler = (err, req, res, next) => {
+app.use((err, req, res, next) => {
   console.error('❌ Error:', err.message);
-
   if (err.name === 'CastError' && err.kind === 'ObjectId') {
     return res.status(400).json({ error: 'Malformatted ID' });
   } else if (err.name === 'ValidationError') {
     return res.status(400).json({ error: err.message });
   }
-
-  next(err); // Let Express handle other errors
-};
-
-app.use(errorHandler); // Use after routes and unknown endpoint middleware
+  res.status(500).json({ error: 'Server error' });
+});
 
 // ✅ Start Server
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
